@@ -35,10 +35,12 @@ ui <- dashboardPage(
        box(which = "plot",
         selectizeInput("prop1", "Seleccionar 1", choices = NULL),
         selectizeInput("prop2", "Seleccionar 2", choices = NULL),
+        varselect
         plotOutput("puntos")
         ),
        box(title = "Histograma",
-           plotOutput("hist"))
+           plotOutput("hist")), 
+       verbatimTextOutput("prueba")
           ),
     fluidRow(
       dataTableOutput("tabla")
@@ -47,14 +49,14 @@ ui <- dashboardPage(
 )
 
 # Define server logic required to draw a histogram
-server <- function(input, output) {
+server <- function(input, output, session) {
   options(shiny.maxRequestSize=30*1024^2)
   
   datos <- reactive({
+    req(input$archivomsla)
     archivos <- input$archivomsla
-    if(is.null(archivos)){ 
-      return(NULL)
-    } else if(archivos$type == "text/csv"){
+    
+    if(endsWith(archivos$name, ".csv")){
       withProgress(message = "Importando Archivo",{
         datos <- read.csv(archivos$datapath)
       })
@@ -64,16 +66,25 @@ server <- function(input, output) {
       })
     }
   })
-      
+  
   output$tabla <- renderDataTable({
     datos()
   })
+  output$prueba <- renderPrint({
+    colnames(datos())
+  })
+  
+  observe({
+    # updateSelectizeInput(session, "aplicacion", choices = datos()$Asset.Class)
+    # updateSelectizeInput(session, "prop1", choices = colnames(datos()))
+    # updateSelectizeInput(session, "prop2", choices = colnames(datos()))
+  })
   
   output$puntos <- renderPlot({
-    
-  })
-  observe({
-    updateSelectizeInput(session, "aplicacion", choices = as_factor(datos()$`Asset Class`))
+    # datos() %>% 
+    #   #filter(Asset.Class == input$aplicacion) %>% 
+    #   ggplot(aes_string(input$prop1, input$prop2)) +
+    #   geom_point()
   })
 }
 
