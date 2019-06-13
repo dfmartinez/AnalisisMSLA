@@ -31,22 +31,10 @@ ui <- dashboardPage(
     selectizeInput("aplicacion", "Seleccione la Aplicación", choices = NULL)
   ),
   dashboardBody(
-    fluidRow(
-       box(which = "plot",
-        selectizeInput("prop1", "Seleccionar 1", choices = NULL),
-        selectizeInput("prop2", "Seleccionar 2", choices = NULL),
-        varselect
-        plotOutput("puntos")
-        ),
-       box(title = "Histograma",
-           plotOutput("hist")), 
-       verbatimTextOutput("prueba")
-          ),
-    fluidRow(
-      dataTableOutput("tabla")
+    uiOutput("salida")
     )
   )
-)
+
 
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
@@ -66,26 +54,15 @@ server <- function(input, output, session) {
       })
     }
   })
-  
-  output$tabla <- renderDataTable({
-    datos()
-  })
-  output$prueba <- renderPrint({
-    colnames(datos())
-  })
-  
-  observe({
-    # updateSelectizeInput(session, "aplicacion", choices = datos()$Asset.Class)
-    # updateSelectizeInput(session, "prop1", choices = colnames(datos()))
-    # updateSelectizeInput(session, "prop2", choices = colnames(datos()))
+  output$salida <- renderUI({
+    fluidRow(
+      box(
+        varSelectizeInput("var1", "Escojer Variable 1", datos()),
+        
+      )
+    )
   })
   
-  output$puntos <- renderPlot({
-    # datos() %>% 
-    #   #filter(Asset.Class == input$aplicacion) %>% 
-    #   ggplot(aes_string(input$prop1, input$prop2)) +
-    #   geom_point()
-  })
 }
 
 # Run the application 
