@@ -31,7 +31,8 @@ ui <- dashboardPage(
     selectizeInput("aplicacion", "Seleccione la Aplicación", choices = NULL)
   ),
   dashboardBody(
-    uiOutput("salida")
+    uiOutput("salida"),
+    dataTableOutput("dat")
     )
   )
 
@@ -54,15 +55,30 @@ server <- function(input, output, session) {
       })
     }
   })
+  
+  observe(
+    updateSelectizeInput(session, "aplicacion", choices = datos()$`Application Type`)
+  )
   output$salida <- renderUI({
     fluidRow(
       box(
         varSelectizeInput("var1", "Escojer Variable 1", datos()),
-        
+        varSelectizeInput("var2", "Escojer Variable 2", datos()),
+        plotOutput("graf1")
       )
     )
   })
   
+  output$dat <- renderDataTable({
+    datos()
+  })
+  
+  output$graf1 <- renderPlot({
+    data() %>% 
+      # filter(`Asset Class` == input$aplicacion) %>% 
+      ggplot(aes(!!input$var1, !!input$var2)) +
+      geom_point()
+  })
 }
 
 # Run the application 
