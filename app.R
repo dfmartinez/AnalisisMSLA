@@ -7,6 +7,10 @@ library(shinydashboard)
 library(tidyverse)
 library(httr)
 library(jsonlite)
+library(reactlog)
+library(ggvis)
+
+options(shiny.reactlog = TRUE)
 
 # Pruebas inciales conexion API MobilServ
 # url_base <- "https://api.ucld.us/"
@@ -27,12 +31,15 @@ ui <- dashboardPage(
     fileInput("archivomsla", "Buscar Archivo descargado MSLA", multiple = FALSE,
               accept = c(".xls", ".xlsx", ".csv"),
               placeholder = "Ningún Archivo Seleccionado"),
-    dateRangeInput("fechas", "Rango de Fechas Activas", end = Sys.Date()),
-    selectizeInput("aplicacion", "Seleccione la Aplicación", choices = NULL)
+    dateRangeInput("fechas", "Rango de Fechas Muestreo", start = Sys.Date() - 30, end = Sys.Date()),
+    selectizeInput("cliente", "Seleccionar Cliente", choices = NULL),
+    selectizeInput("aplicacion", "Seleccione la Aplicación", choices = NULL) 
+    
   ),
   dashboardBody(
     uiOutput("salida"),
     dataTableOutput("dat")
+    # verbatimTextOutput("text")
     )
   )
 
@@ -51,33 +58,59 @@ server <- function(input, output, session) {
       })
     } else{
       withProgress(message = "Importando Datos", {
-        datos <- readxl::read_excel(archivos$datapath)
+        datos <- readxl::read_excel(archivos$datapath,1)
       })
     }
+    return(datos)
   })
   
-  observe(
-    updateSelectizeInput(session, "aplicacion", choices = datos()$`Application Type`)
-  )
+  filtro <- reactive({ datos() %>% 
+    select(-starts_with("RESULT"),
+           -(1:78))
+  })
+  
+## Actulización de las listas desplegables con valores del archivo importado  
+  observe({
+    updateSelectizeInput(session, "aplicacion", choices = datos()$`Asset Class`, selected = NULL)
+    updateSelectizeInput(session, "cliente", choices = datos()$`Account Name`, selected = NULL)
+  })
+  
   output$salida <- renderUI({
     fluidRow(
-      box(
-        varSelectizeInput("var1", "Escojer Variable 1", datos()),
-        varSelectizeInput("var2", "Escojer Variable 2", datos()),
+      box( title = "Gráfico Dispersión",
+        # selectizeInput("var1", "Variable 1", choices = colnames(datos())),
+        varSelectizeInput("var1", "Escojer Variable 1", filtro(), multiple = FALSE),
+        varSelectizeInput("var2", "Escojer Variable 2", filtro(), multiple = FALSE),
         plotOutput("graf1")
+      ),
+      box( title = "Gráfico Histograma",
+        varSelectizeInput("var3", "Escojer variable", filtro(), multiple = FALSE), 
+        plotOutput("graf2")
       )
     )
   })
   
-  output$dat <- renderDataTable({
-    datos()
+  graficas <- reactive({
+    datos() %>% 
+      filter(`Date Sampled` >= input$fechas[1] & `Date Sampled` <= input$fechas[2] & 
+               `Account Name` == input$cliente & `Asset Class` == input$aplicacion)
+  })
+  
+  output$dat <- renderDataTable(
+    graficas(),{
+    options = list(scrollX = TRUE)
   })
   
   output$graf1 <- renderPlot({
-    data() %>% 
-      # filter(`Asset Class` == input$aplicacion) %>% 
-      ggplot(aes(!!input$var1, !!input$var2)) +
-      geom_point()
+    graficas() %>% 
+      ggplot() +
+      geom_point(aes(!!input$var1, !!input$var2))
+  })
+  
+  output$graf2 <- renderPlot({
+    graficas() %>% 
+    ggplot() +
+      geom_histogram(aes(as.numeric(!!input$var3)))
   })
 }
 
