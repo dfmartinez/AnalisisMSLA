@@ -7,16 +7,10 @@ library(shinydashboard)
 library(tidyverse)
 library(httr)
 library(jsonlite)
+library(reactlog)
 
-# Pruebas inciales conexion API MobilServ
-# url_base <- "https://api.ucld.us/"
-# url_final <- modify_url(url_base, path = "env/prd/authentication")
-# clave <- POST(url_final, body = list(UserName = "diego.martinez@terpel.com", Password = "Tomate80"),
-#               encode = "json",
-#               add_headers(ContentType = "application/json",
-#                           Accept = "*/*"
-#                           ), verbose()) %>% 
-#   content("text")
+
+options(shiny.reactlog = TRUE)
 
 # Interfaz de Usuario
 ui <- dashboardPage(
@@ -24,61 +18,74 @@ ui <- dashboardPage(
   dashboardHeader(title = ("ANÁLISIS DE RESULTADOS MSLA")),
   # Controles Comunes a toda la aplicación
   dashboardSidebar(
-    fileInput("archivomsla", "Buscar Archivo descargado MSLA", multiple = FALSE,
-              accept = c(".xls", ".xlsx", ".csv"),
-              placeholder = "Ningún Archivo Seleccionado"),
-    dateRangeInput("fechas", "Rango de Fechas Activas", end = Sys.Date()),
-    selectizeInput("aplicacion", "Seleccione la Aplicación", choices = NULL)
+    # fileInput("archivomsla", "Buscar Archivo descargado MSLA", multiple = FALSE,
+    #           accept = c(".xls", ".xlsx", ".csv"),
+    #           placeholder = "Ningún Archivo Seleccionado"),
+    helpText("Ingrese Usuario y contraseña de MobilServ para iniciar"),
+    textInput("user", "Usuario"),
+    passwordInput("pass", "Contraseña"),
+    actionButton("login", "Iniciar"),
+    uiOutput("filtros")
+    # dateRangeInput("fechas", "Rango de Fechas Activas", end = Sys.Date()),
+    # selectizeInput("aplicacion", "Seleccione la Aplicación", choices = NULL)
   ),
   dashboardBody(
-    uiOutput("salida"),
-    dataTableOutput("dat")
+    # uiOutput("salida"),
+    # dataTableOutput("dat")
+    verbatimTextOutput("txt1"),
+    verbatimTextOutput("txt2")
     )
   )
 
 
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
-  options(shiny.maxRequestSize=30*1024^2)
+  # options(shiny.maxRequestSize=30*1024^2)
   
-  datos <- reactive({
-    req(input$archivomsla)
-    archivos <- input$archivomsla
-    
-    if(endsWith(archivos$name, ".csv")){
-      withProgress(message = "Importando Archivo",{
-        datos <- read.csv(archivos$datapath)
+  ## Pruebas inciales conexion API MobilServ
+  
+  SolAPI <- function(path){
+    url_base <- "https://api.ucld.us/"
+    url_mod <- modify_url(url_base, path = paste0("env/prd/",path))
+    return(url_mod)
+  }
+  
+  observeEvent(input$login, {
+    # url_clave <- modify_url(url_base, path = "env/prd/authentication")
+    withProgress(message = "Conectando a MSLA",{
+    clave <- reactive({POST(SolAPI("authentication"), body = list(UserName = input$user, Password = input$pass),
+                  encode = "json",
+                  add_headers(ContentType = "application/json",
+                              Accept = "*/*"
+                              )) %>%
+      content("text")
       })
-    } else{
-      withProgress(message = "Importando Datos", {
-        datos <- readxl::read_excel(archivos$datapath)
-      })
-    }
+    })
   })
   
-  observe(
-    updateSelectizeInput(session, "aplicacion", choices = datos()$`Application Type`)
-  )
-  output$salida <- renderUI({
-    fluidRow(
-      box(
-        varSelectizeInput("var1", "Escojer Variable 1", datos()),
-        varSelectizeInput("var2", "Escojer Variable 2", datos()),
-        plotOutput("graf1")
-      )
-    )
-  })
+  cuentas <- reactive({
+    req(input$login)
+    GET(SolAPI("account/getaccounts"),
+        add_headers(Accept = "*/*",
+                    ContentType = "application/json",
+                    Authorization = clave())) %>%
+      stop_for_status() %>%
+      content("text")
+  })  
+
+  # output$filtros <- renderUI(
+  #   # req(input$login)
+  #   selectizeInput("cuentas", choices = cuentas)
+  # )
   
-  output$dat <- renderDataTable({
-    datos()
-  })
-  
-  output$graf1 <- renderPlot({
-    data() %>% 
-      # filter(`Asset Class` == input$aplicacion) %>% 
-      ggplot(aes(!!input$var1, !!input$var2)) +
-      geom_point()
-  })
+  # output$txt1 <- renderText({
+  #   clave()
+  #   })
+  # output$txt2 <- renderText({
+  #   if(input$login == 0){
+  #     return(0)
+  #   } else{cuentas}
+  # })
 }
 
 # Run the application 
