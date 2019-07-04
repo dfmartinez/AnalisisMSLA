@@ -18,9 +18,6 @@ ui <- dashboardPage(
   dashboardHeader(title = ("ANÁLISIS DE RESULTADOS MSLA")),
   # Controles Comunes a toda la aplicación
   dashboardSidebar(
-    # fileInput("archivomsla", "Buscar Archivo descargado MSLA", multiple = FALSE,
-    #           accept = c(".xls", ".xlsx", ".csv"),
-    #           placeholder = "Ningún Archivo Seleccionado"),
     helpText("Ingrese Usuario y contraseña de MobilServ para iniciar"),
     textInput("user", "Usuario"),
     passwordInput("pass", "Contraseña"),
@@ -30,7 +27,7 @@ ui <- dashboardPage(
     # selectizeInput("aplicacion", "Seleccione la Aplicación", choices = NULL)
   ),
   dashboardBody(
-    # uiOutput("salida"),
+    uiOutput("salida"),
     # dataTableOutput("dat")
     verbatimTextOutput("txt1"),
     verbatimTextOutput("txt2")
@@ -47,45 +44,70 @@ server <- function(input, output, session) {
   SolAPI <- function(path){
     url_base <- "https://api.ucld.us/"
     url_mod <- modify_url(url_base, path = paste0("env/prd/",path))
+    
     return(url_mod)
   }
   
-  observeEvent(input$login, {
-    # url_clave <- modify_url(url_base, path = "env/prd/authentication")
-    withProgress(message = "Conectando a MSLA",{
-    clave <- reactive({POST(SolAPI("authentication"), body = list(UserName = input$user, Password = input$pass),
-                  encode = "json",
-                  add_headers(ContentType = "application/json",
-                              Accept = "*/*"
-                              )) %>%
-      content("text")
-      })
+  clave <- eventReactive(input$login, {
+    withProgress({
+      POST(SolAPI("authentication"), body = list(UserName = input$user, Password = input$pass),
+           encode = "json",
+           add_headers(ContentType = "application/json",
+                       Accept = "*/*"
+           )) %>%
+        content("text")
     })
   })
   
+ 
   cuentas <- reactive({
     req(input$login)
-    GET(SolAPI("account/getaccounts"),
+    datos <- GET(SolAPI("account/getaccounts"),
         add_headers(Accept = "*/*",
                     ContentType = "application/json",
                     Authorization = clave())) %>%
       stop_for_status() %>%
-      content("text")
+      content("text") %>% 
+      fromJSON()
+    datos <- datos %>% 
+     slice(3:n())
+    
+    datos <- datos %>% 
+      split(.$name) %>% 
+      map(~ .$id)
+    
+    datos
   })  
-
-  # output$filtros <- renderUI(
-  #   # req(input$login)
-  #   selectizeInput("cuentas", choices = cuentas)
-  # )
   
-  # output$txt1 <- renderText({
-  #   clave()
-  #   })
-  # output$txt2 <- renderText({
-  #   if(input$login == 0){
-  #     return(0)
-  #   } else{cuentas}
-  # })
+  output$filtros <- renderUI({
+    selectizeInput("cuentas", "Seleccione la Cuenta", choices = cuentas(), selected = NULL)
+  })
+  
+  assets <- reactive({
+    assets <- POST(SolAPI("asset/getassets"),
+                   body = list(clientID = input$cuentas, IsActive = TRUE),
+                   encode = "json",
+                   add_headers(Accept = "*/*",
+                               ContentType = "application/json",
+                               Authorization = clave())) %>%
+      stop_for_status() %>%
+      content("text") %>% 
+      fromJSON()
+    
+    assets <- assets$body$Assets
+    assets
+  })
+
+  output$salida <- renderUI({
+    fluidRow(
+      box(title = "Assets Asinados",
+          selectizeInput("assets", "Seleccionar el Asset", choices = assets()))
+    )
+  })
+  
+  output$txt2 <- renderText({
+    input$cuentas
+  })
 }
 
 # Run the application 
