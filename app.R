@@ -28,7 +28,7 @@ ui <- dashboardPage(
   ),
   dashboardBody(
     uiOutput("salida"),
-    # dataTableOutput("dat")
+    dataTableOutput("dat"),
     verbatimTextOutput("txt1"),
     verbatimTextOutput("txt2")
     )
@@ -92,21 +92,37 @@ server <- function(input, output, session) {
                                Authorization = clave())) %>%
       stop_for_status() %>%
       content("text") %>% 
-      fromJSON()
+      fromJSON(flatten = TRUE)
     
-    assets <- assets$body$Assets
+    assets <- as_tibble(assets$body$Assets) %>% 
+      unnest() %>% 
+      select(-ID) %>% 
+      spread(Title, Value)
+    
     assets
   })
 
   output$salida <- renderUI({
     fluidRow(
       box(title = "Assets Asinados",
-          selectizeInput("assets", "Seleccionar el Asset", choices = assets()))
+          selectizeInput("assets", "Seleccionar el Asset", choices = assets(), 
+                         options = list(render = I(
+                           '{
+                           option: function(item, scape){
+                               return "<div><strong>" + scape(item.AssetID) + "</strong>" +
+                               " - " + scape(item.UnitID)"
+                             }
+                           }'
+                         )))
+          )
     )
   })
   
   output$txt2 <- renderText({
     input$cuentas
+  })
+  output$dat <- renderDataTable({
+    assets()
   })
 }
 
