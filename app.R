@@ -50,7 +50,7 @@ server <- function(input, output, session) {
   
   clave <- eventReactive(input$login, {
     withProgress({
-      POST(SolAPI("authentication"), body = list(UserName = input$user, Password = input$pass),
+      POST(SolAPI("authentication"), body = list(UserName = paste0(input$user,"@terpel.com"), Password = input$pass),
            encode = "json",
            add_headers(ContentType = "application/json",
                        Accept = "*/*"
@@ -104,26 +104,26 @@ server <- function(input, output, session) {
 
   output$salida <- renderUI({
     fluidRow(
-      box(title = "Assets Asinados",
-          selectizeInput("assets", "Seleccionar el Asset", choices = assets(), 
-                         options = list(render = I(
-                           '{
-                           option: function(item, scape){
-                               return "<div><strong>" + scape(item.AssetID) + "</strong>" +
-                               " - " + scape(item.UnitID)"
-                             }
-                           }'
-                         )))
+      box(title = "Assets Disponibles",
+          selectizeInput("assets", "Seleccionar el Asset", choices = assets()$AssetID # , 
+                         # options = list(render = I(
+                         #   '{
+                         #      option: function(item, escape) {
+                         #        return "<div><strong>" + item.mpg + "</strong>" +
+                         #          " - " + item.qsec + "<div>";
+                         #      }
+                         #   }')
+                         ))
           )
-    )
   })
   
   output$txt2 <- renderText({
     input$cuentas
   })
-  output$dat <- renderDataTable({
-    assets()
-  })
+  output$dat <- renderDataTable(assets(),
+    {
+      options = list(scrollX = TRUE)
+    })
 }
 
 # Run the application 
