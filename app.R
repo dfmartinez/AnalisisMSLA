@@ -27,8 +27,6 @@ ui <- dashboardPage(
     # selectizeInput("aplicacion", "Seleccione la Aplicación", choices = NULL)
   ),
   dashboardBody(
-    uiOutput("salida"),
-    dataTableOutput("dat"),
     verbatimTextOutput("txt1"),
     verbatimTextOutput("txt2")
     )
@@ -48,82 +46,16 @@ server <- function(input, output, session) {
     return(url_mod)
   }
   
-  clave <- eventReactive(input$login, {
-    withProgress({
-      POST(SolAPI("authentication"), body = list(UserName = paste0(input$user,"@terpel.com"), Password = input$pass),
-           encode = "json",
-           add_headers(ContentType = "application/json",
-                       Accept = "*/*"
-           )) %>%
-        content("text")
-    })
+  observeEvent(input$login,{
+   clave <- POST(SolAPI("authentication"), 
+                 body = list(input$user, input$pass),
+                 encode = "json",
+                 add_headers(Accept = "*/*",
+                            ContentType = "application/json")
+                 ) %>%
+           content(as = "text") 
   })
   
- 
-  cuentas <- reactive({
-    req(input$login)
-    datos <- GET(SolAPI("account/getaccounts"),
-        add_headers(Accept = "*/*",
-                    ContentType = "application/json",
-                    Authorization = clave())) %>%
-      stop_for_status() %>%
-      content("text") %>% 
-      fromJSON()
-    datos <- datos %>% 
-     slice(3:n())
-    
-    datos <- datos %>% 
-      split(.$name) %>% 
-      map(~ .$id)
-    
-    datos
-  })  
-  
-  output$filtros <- renderUI({
-    selectizeInput("cuentas", "Seleccione la Cuenta", choices = cuentas(), selected = NULL)
-  })
-  
-  assets <- reactive({
-    assets <- POST(SolAPI("asset/getassets"),
-                   body = list(clientID = input$cuentas, IsActive = TRUE),
-                   encode = "json",
-                   add_headers(Accept = "*/*",
-                               ContentType = "application/json",
-                               Authorization = clave())) %>%
-      stop_for_status() %>%
-      content("text") %>% 
-      fromJSON(flatten = TRUE)
-    
-    assets <- as_tibble(assets$body$Assets) %>% 
-      unnest() %>% 
-      select(-ID) %>% 
-      spread(Title, Value)
-    
-    assets
-  })
-
-  output$salida <- renderUI({
-    fluidRow(
-      box(title = "Assets Disponibles",
-          selectizeInput("assets", "Seleccionar el Asset", choices = assets()$AssetID # , 
-                         # options = list(render = I(
-                         #   '{
-                         #      option: function(item, escape) {
-                         #        return "<div><strong>" + item.mpg + "</strong>" +
-                         #          " - " + item.qsec + "<div>";
-                         #      }
-                         #   }')
-                         ))
-          )
-  })
-  
-  output$txt2 <- renderText({
-    input$cuentas
-  })
-  output$dat <- renderDataTable(assets(),
-    {
-      options = list(scrollX = TRUE)
-    })
 }
 
 # Run the application 
