@@ -21,12 +21,12 @@ ui <- dashboardPage(
     helpText("Ingrese Usuario y contraseña de MobilServ para iniciar"),
     textInput("user", "Usuario"),
     passwordInput("pass", "Contraseña"),
-    actionButton("login", "Iniciar"),
-    uiOutput("filtros")
+    actionButton("login", "Iniciar")
     # dateRangeInput("fechas", "Rango de Fechas Activas", end = Sys.Date()),
     # selectizeInput("aplicacion", "Seleccione la Aplicación", choices = NULL)
   ),
   dashboardBody(
+    uiOutput("filtros"),
     verbatimTextOutput("txt1"),
     verbatimTextOutput("txt2")
     )
@@ -35,10 +35,8 @@ ui <- dashboardPage(
 
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
-  # options(shiny.maxRequestSize=30*1024^2)
   
-  ## Pruebas inciales conexion API MobilServ
-  
+  # Función para interactuar con API
   SolAPI <- function(path){
     url_base <- "https://api.ucld.us/"
     url_mod <- modify_url(url_base, path = paste0("env/prd/",path))
@@ -48,12 +46,23 @@ server <- function(input, output, session) {
   
   observeEvent(input$login,{
    clave <- POST(SolAPI("authentication"), 
-                 body = list(input$user, input$pass),
+                 body = list(paste0(input$user,"@terpel.com"), input$pass),
                  encode = "json",
                  add_headers(Accept = "*/*",
                             ContentType = "application/json")
                  ) %>%
+     stop_for_status() %>%
            content(as = "text") 
+  })
+  
+  output$filtros <- renderUI({
+    cuentas <- GET(SolAPI("account/getaccounts"),
+                   add_headers(Accept = "*/*",
+                               ContentType = "application/json", 
+                               Authorization = clave)) %>% 
+      stop_for_status()
+    
+    selectizeInput("cuentas", "Seleccionar las Cuentas", choices = cuentas)
   })
   
 }
